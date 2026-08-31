@@ -204,8 +204,8 @@ impl eframe::App for App {
                 (self.number - self.target_number).abs() * self.ruleset.distance_penalty;
 
             ui.label(format!(
-                "Score: {used_points} - {distance_penalty} = {}",
-                used_points - distance_penalty
+                "Score: {used_points} + {distance_penalty} = {}",
+                used_points + distance_penalty
             ));
 
             ui.separator();
