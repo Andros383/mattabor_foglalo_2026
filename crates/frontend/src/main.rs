@@ -20,7 +20,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "Mátábor Foglaló 2026",
+        "Mattábor Foglaló 2026",
         native_options,
         Box::new(|cc| Ok(Box::new(frontend::App::new(cc)))),
     )

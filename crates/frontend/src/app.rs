@@ -1,4 +1,4 @@
-use shared::TextPayload;
+use shared::{Ruleset, TextPayload};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 enum AppEvent {
@@ -35,8 +35,17 @@ fn get_api_url(path: &str) -> String {
 pub struct App {
     label: String,
 
-    #[serde(skip)]
-    value: f32,
+    target_number: f32,
+
+    // #[serde(skip)]
+    score: f32,
+
+    ruleset: Ruleset,
+
+    number: f32,
+
+    // Változott-e újraszámítás óta a formula
+    changed: bool,
 
     #[serde(skip)]
     status_message: String,
@@ -48,10 +57,14 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            label: "Hello World!".to_owned(),
-            value: 0.0,
+            label: "3*3".to_owned(),
+            target_number: 383.0,
+            score: 0.0,
             status_message: String::new(),
             channel: ChannelPair::default(),
+            ruleset: Ruleset::default(),
+            number: 0.0,
+            changed: true,
         }
     }
 }
@@ -153,7 +166,7 @@ impl eframe::App for App {
         while let Ok(event) = self.channel.rx.try_recv() {
             match event {
                 AppEvent::TextReceived(text) => {
-                    self.value = text.chars().count() as f32;
+                    self.score = text.chars().count() as f32;
                     self.label = text;
                 }
                 AppEvent::StatusUpdate(status) => {
@@ -163,30 +176,66 @@ impl eframe::App for App {
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.heading("Mátábor Foglaló 2026");
+            ui.heading("Mattábor Foglaló 2026");
 
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                ui.label("Write something: ");
+                ui.label("Target number: ");
+                ui.add(egui::DragValue::new(&mut self.target_number));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Write formula: ");
                 let resp = ui.text_edit_singleline(&mut self.label);
                 if resp.changed() {
-                    self.value = self.label.chars().count() as f32;
+                    match shared::calculate_number(&self.label) {
+                        Ok(x) => self.number = x as f32,
+                        Err(_) => self.number = -1 as f32,
+                    }
                 }
             });
+
+            // if ui.button("Calculate number").clicked() {}
+
+            ui.label(format!("Number: {}", self.number));
+            let used_points = shared::calculate_score(&self.label, self.ruleset.clone());
+            let distance_penalty =
+                (self.number - self.target_number).abs() * self.ruleset.distance_penalty;
+
+            ui.label(format!(
+                "Score: {used_points} - {distance_penalty} = {}",
+                used_points - distance_penalty
+            ));
 
             ui.separator();
-            ui.label(format!("Text length: {}", self.value));
+
+            ui.horizontal(|ui| {
+                ui.label("Distance penalty");
+                ui.add(egui::DragValue::new(&mut self.ruleset.distance_penalty));
+            });
+            ui.horizontal(|ui| {
+                ui.label("Concat");
+                ui.add(egui::DragValue::new(&mut self.ruleset.concat_value));
+            });
+
+            for (symbol, value) in &mut self.ruleset.symbol_values {
+                ui.horizontal(|ui| {
+                    ui.label(symbol.to_string());
+                    ui.add(egui::DragValue::new(value));
+                });
+            }
 
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button("Send to server").clicked() {
-                    self.send_to_server(ui.ctx().clone());
-                }
-                if ui.button("Get from server").clicked() {
-                    self.get_from_server(ui.ctx().clone());
-                }
-            });
+
+            // ui.horizontal(|ui| {
+            //     if ui.button("Send to server").clicked() {
+            //         self.send_to_server(ui.ctx().clone());
+            //     }
+            //     if ui.button("Get from server").clicked() {
+            //         self.get_from_server(ui.ctx().clone());
+            //     }
+            // });
 
             if !self.status_message.is_empty() {
                 ui.add_space(8.0);
